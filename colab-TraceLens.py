@@ -242,29 +242,6 @@ print("Precision: ", perc)
 print(f"Number of anomalies: {np.sum(anomalies)}")
 print(f"Anomaly indices: {np.where(anomalies)[0]}")
 
-# Step 1: Extract anomalies from the original data
-anomaly_indices = np.where(anomalies)[0]
-original_anomalies = original_test_data.iloc[anomaly_indices]
-
-# Step 2: Force unique index to avoid reindexing issues
-original_anomalies = original_anomalies.reset_index(drop=True)
-original_anomalies.index = range(len(original_anomalies))  # Ensure unique, continuous indexing
-
-# Step 3: Check if the 'Augmented' column exists
-if "Augmented" in original_anomalies.columns:
-    # Step 4: Filter out augmented data
-    filtered_anomalies = original_anomalies.loc[original_anomalies["Augmented"] == False]
-
-    # Step 5: Display the non-augmented anomalies
-    print("Original Non-Augmented Anomalous Data Points:\n")
-    print(filtered_anomalies.head(5))
-else:
-    print("Error: 'Augmented' column is missing in the dataset.")
-
-# Save to CSV
-filtered_anomalies.to_csv(r'anomalies.csv', index=False)
-print(len(anomalies))
-
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -282,13 +259,19 @@ plt.show()
 
 plt.figure(figsize=(12, 6))
 
+# Step 1: Filter out rows where "Augmented" is True
+non_augmented_mask = original_test_data["Augmented"] == False
+
+# Step 2: Combine the non-augmented mask with the anomalies
+valid_anomalies = anomalies & non_augmented_mask.values
+
 # Plot reconstruction errors over actual time
 plt.scatter(original_test_data['WindowStartTime(s)'], reconstruction_errors,
             label='Reconstruction Error', color='blue', alpha=0.6, s=10)
 
 # Highlight anomalies with larger red points
-plt.scatter(original_test_data['WindowStartTime(s)'][anomalies],
-            reconstruction_errors[anomalies],
+plt.scatter(original_test_data['WindowStartTime(s)'][valid_anomalies],
+            reconstruction_errors[valid_anomalies],
             color='red', label='Anomalies', s=30)
 
 # Plot the threshold line
@@ -318,79 +301,34 @@ plt.ylabel("Principal Component 2")
 plt.legend()
 plt.show()
 
-import matplotlib.pyplot as plt
-
-# plot the training losses
-fig, ax = plt.subplots(figsize=(14, 6), dpi=80)
-ax.plot(history['loss'], 'b', label='Train', linewidth=2)
-ax.plot(history['val_loss'], 'r', label='Validation', linewidth=2)
-ax.set_title('Model loss', fontsize=16)
-ax.set_ylabel('Loss (mae)')
-ax.set_xlabel('Epoch')
-ax.legend(loc='upper right')
-plt.show()
-
-import seaborn as sns
-import matplotlib.pyplot as plt
-
-# Plot reconstruction error distribution
-plt.figure(figsize=(10, 6))
-sns.histplot(reconstruction_errors, bins=50, kde=True, color='blue')
-
-plt.axvline(threshold, color='red', linestyle='--', label='Threshold')
-plt.xlabel("Reconstruction Error")
-plt.ylabel("Frequency")
-plt.title("Reconstruction Error Distribution")
-plt.legend()
-plt.show()
-
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 
-# Assuming X_test is your test dataset and 'anomalies' is a boolean array of detected anomalies
+# Assuming `original_test_data` contains the "Augmented" column
+# and `anomalies` is a boolean array for detected anomalies.
 
-# Apply t-SNE for dimensionality reduction
+# Step 1: Filter out rows where "Augmented" is True
+non_augmented_mask = original_test_data["Augmented"] == False
+
+# Step 2: Combine the non-augmented mask with the anomalies
+valid_anomalies = anomalies & non_augmented_mask.values
+
+# Step 3: Apply t-SNE for dimensionality reduction
 tsne = TSNE(n_components=2, perplexity=30, random_state=42, n_iter=1000)
 X_tsne = tsne.fit_transform(X_test.reshape(X_test.shape[0], -1))  # Flatten if necessary
 
-# Plotting the t-SNE projection
+# Step 4: Plotting the t-SNE projection
 plt.figure(figsize=(10, 6))
 
-# Normal data points
+# Plot Normal data points
 plt.scatter(X_tsne[~anomalies, 0], X_tsne[~anomalies, 1],
             label="Normal", alpha=0.6, c='blue', s=10)
 
-# Anomalies
-plt.scatter(X_tsne[anomalies, 0], X_tsne[anomalies, 1],
-            label="Anomaly", alpha=0.8, c='red', s=20)
+# Plot Anomalies (excluding augmented data)
+plt.scatter(X_tsne[valid_anomalies, 0], X_tsne[valid_anomalies, 1],
+            label="Anomaly (Non-Augmented)", alpha=0.8, c='red', s=20)
 
-plt.title("t-SNE Projection of Test Data")
-plt.xlabel("Component 1")
-plt.ylabel("Component 2")
-plt.legend()
-plt.show()
-
-pip install umap-learn
-
-import umap
-import matplotlib.pyplot as plt
-
-# Apply UMAP for dimensionality reduction
-umap_reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, n_components=2, random_state=42)
-X_umap = umap_reducer.fit_transform(X_test.reshape(X_test.shape[0], -1))
-
-# Plotting the UMAP projection
-plt.figure(figsize=(10, 6))
-
-# Normal data points
-plt.scatter(X_umap[~anomalies, 0], X_umap[~anomalies, 1],
-            label="Normal", alpha=0.6, c='blue', s=10)
-
-# Anomalies
-plt.scatter(X_umap[anomalies, 0], X_umap[anomalies, 1],
-            label="Anomaly", alpha=0.8, c='red', s=20)
-
-plt.title("UMAP Projection of Test Data")
+plt.title("t-SNE Projection of Test Data (Non-Augmented Anomalies)")
 plt.xlabel("Component 1")
 plt.ylabel("Component 2")
 plt.legend()
